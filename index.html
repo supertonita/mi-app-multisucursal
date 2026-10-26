@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Super Toñita - Admin Global</title>
+  <title>Super Toñita -</title>
   
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -135,7 +135,7 @@
   </div>
 
   <header>
-    <h1>🛒 Super Toñita <span style="font-size: 11px; font-weight: 400; opacity: 0.8;">Admin Global</span></h1>
+    <h1>🛒 Super Toñita <span style="font-size: 11px; font-weight: 400; opacity: 0.8;"></span></h1>
     <span id="syncStatus">Sincronizado</span>
   </header>
 
@@ -255,7 +255,7 @@
     <div id="screenProductos" class="app-screen">
       <div class="section-box">
         <h2>📦 Administrar / Crear Producto Nuevo</h2>
-        <p style="margin-bottom: 12px; color: #666; font-size: 11px;">Busca un producto existente o escanea/escribe un código de barras nuevo para ingresar el producto a la base de datos.</p>
+        <p style="margin-bottom: 12px; color: #666; font-size: 11px;"</p>
 
         <form onsubmit="guardarProductoSeleccionado(event)">
           <div class="form-grid" style="position: relative;">
@@ -274,7 +274,7 @@
             </div>
             <div>
               <label style="font-size: 11px; display:block; font-weight:700; margin-bottom:3px;">Nombre / Descripción:</label>
-              <input type="text" id="gDescripcion" placeholder="Ej: Café Toñita 100g" style="width: 100%;" required>
+              <input type="text" id="gDescripcion" placeholder="Ej: " style="width: 100%;" required>
             </div>
             <div>
               <label style="font-size: 11px; display:block; font-weight:700; margin-bottom:3px;">Precio Costo ($):</label>
@@ -518,7 +518,21 @@
         
         let fechaVentaStr = String(v.fecha).slice(0, 10);
 
-        // BLOQUEO DE SEGURIDAD ESTRICTO: Omitir cualquier ticket con fecha posterior al día de hoy local
+        // CORRECCIÓN AUTOMÁTICA DE ZONA HORARIA:
+        // Si el ticket se guardó en la madrugada UTC (que corresponde a la noche del día anterior en El Salvador), lo regresamos a su fecha real.
+        if (v.fecha.includes('T')) {
+          let horaUtc = v.fecha.split('T')[1];
+          if (horaUtc && (horaUtc.startsWith('00:') || horaUtc.startsWith('01:') || horaUtc.startsWith('02:') || horaUtc.startsWith('03:') || horaUtc.startsWith('04:') || horaUtc.startsWith('05:'))) {
+            let dTemp = new Date(fechaVentaStr + "T00:00:00");
+            dTemp.setDate(dTemp.getDate() - 1);
+            let anioT = dTemp.getFullYear();
+            let mesT = String(dTemp.getMonth() + 1).padStart(2, '0');
+            let diaT = String(dTemp.getDate()).padStart(2, '0');
+            fechaVentaStr = `${anioT}-${mesT}-${diaT}`;
+          }
+        }
+
+        // BLOQUEO DE SEGURIDAD ESTRICTO: Omitir fechas futuras al día de hoy local
         if (fechaVentaStr > fechaHoyStr) {
           return false;
         }
@@ -673,6 +687,15 @@
           let diasMap = {};
           ventas.forEach(v => {
             let diaStr = String(v.fecha).slice(0, 10);
+            if (v.fecha.includes('T')) {
+              let horaUtc = v.fecha.split('T')[1];
+              if (horaUtc && (horaUtc.startsWith('00:') || horaUtc.startsWith('01:') || horaUtc.startsWith('02:') || horaUtc.startsWith('03:') || horaUtc.startsWith('04:') || horaUtc.startsWith('05:'))) {
+                let dTemp = new Date(diaStr + "T00:00:00");
+                dTemp.setDate(dTemp.getDate() - 1);
+                diaStr = `${dTemp.getFullYear()}-${String(dTemp.getMonth() + 1).padStart(2, '0')}-${String(dTemp.getDate()).padStart(2, '0')}`;
+              }
+            }
+
             if (!diasMap[diaStr]) diasMap[diaStr] = { venta: 0, ganancia: 0 };
             diasMap[diaStr].venta += v.total || 0;
             diasMap[diaStr].ganancia += v.ganancia || 0;

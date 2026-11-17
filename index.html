@@ -120,15 +120,15 @@
 
     .ticket-receipt-preview { font-family: 'Courier New', Courier, monospace; background: #fdfdfd; border: 1px dashed var(--border-color); padding: 16px; border-radius: 12px; max-height: 400px; overflow-y: auto; font-size: 12px; line-height: 1.5; }
 
-    /* Estilos para el Escáner Pro con Mira Láser */
+    /* Estilos para el Escáner Pro Exclusivo de Barras */
     #scannerModal { display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.9); z-index: 2000; flex-direction: column; justify-content: center; align-items: center; padding: 20px; }
     .scanner-container { position: relative; width: 100%; max-width: 400px; background: #000; border-radius: var(--radius); overflow: hidden; border: 2px solid var(--border-color); }
     #reader { width: 100%; }
     
     .scanner-laser-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; pointer-events: none; display: flex; flex-direction: column; justify-content: center; align-items: center; }
-    .scan-box { width: 280px; height: 130px; border: 2px dashed rgba(255,255,255,0.7); border-radius: 12px; position: relative; box-shadow: 0 0 0 1000px rgba(0,0,0,0.5); transition: all 0.2s ease; }
+    .scan-box { width: 300px; height: 120px; border: 2px dashed rgba(255,255,255,0.7); border-radius: 12px; position: relative; box-shadow: 0 0 0 1000px rgba(0,0,0,0.5); transition: all 0.2s ease; }
     .scan-box.detected { border-color: var(--success); background: rgba(16, 185, 129, 0.15); }
-    .scan-line { position: absolute; width: 100%; height: 2px; background: var(--danger); top: 0; animation: scanMove 2s infinite linear; }
+    .scan-line { position: absolute; width: 100%; height: 2px; background: var(--danger); top: 0; animation: scanMove 1.5s infinite linear; }
     @keyframes scanMove { 0% { top: 0%; } 50% { top: 100%; } 100% { top: 0%; } }
 
     /* Barra de Navegación Inferior */
@@ -141,10 +141,10 @@
 </head>
 <body>
 
-  <!-- MODAL DE ESCÁNER DE CÓDIGO DE BARRAS PRO -->
+  <!-- MODAL DE ESCÁNER EXCLUSIVO DE CÓDIGOS DE BARRAS -->
   <div id="scannerModal">
     <div style="color: #fff; margin-bottom: 12px; font-weight: bold; font-size: 15px; text-align: center;">
-      📷 Alinea el código en el recuadro
+      📷 Centra el Código de Barras
     </div>
     <div class="scanner-container">
       <div id="reader"></div>
@@ -156,12 +156,11 @@
         </div>
       </div>
     </div>
-    <canvas id="snapshotCanvas" style="display:none;"></canvas>
     <button onclick="cerrarEscaner()" style="margin-top: 18px; background: var(--danger); color: #fff; border: none; padding: 10px 24px; border-radius: 20px; font-weight: bold; cursor: pointer;">Cerrar Cámara</button>
   </div>
 
   <header>
-    <h1>🛒 Super Toñita <span style="font-size: 11px; font-weight: 500; opacity: 0.7;"></span></h1>
+    <h1>🛒 Super Toñita <span style="font-size: 11px; font-weight: 500; opacity: 0.7;">|</span></h1>
     <span id="syncStatus">Sincronizado</span>
   </header>
 
@@ -398,9 +397,9 @@
       return p.includes('tarj') || p.includes('transf') || p.includes('debito') || p.includes('credito') || p.includes('pos');
     }
 
-    // ==========================================
-    // ESCÁNER PRO OPTIMIZADO (API NATIVA + SUPRESIÓN DE RETARDO)
-    // ==========================================
+    // ========================================================
+    // ESCÁNER PRO EXCLUSIVO PARA CÓDIGOS DE BARRAS (SIN QR)
+    // ========================================================
     function abrirEscaner() {
       document.getElementById('scannerModal').style.display = 'flex';
       const scanBox = document.getElementById('scanBoxElement');
@@ -409,8 +408,17 @@
       html5QrcodeScanner = new Html5Qrcode("reader");
       
       const configEscaneo = { 
-        fps: 25,
-        qrbox: { width: 280, height: 130 },
+        fps: 30,
+        qrbox: { width: 300, height: 120 },
+        // RESTRICCIÓN ESTRICTA: Solo busca formatos de códigos de barras lineales (ignora QR por completo)
+        formatsToSupport: [ 
+          Html5QrcodeSupportedFormats.EAN_13, 
+          Html5QrcodeSupportedFormats.EAN_8, 
+          Html5QrcodeSupportedFormats.CODE_128, 
+          Html5QrcodeSupportedFormats.CODE_39,
+          Html5QrcodeSupportedFormats.UPC_A,
+          Html5QrcodeSupportedFormats.UPC_E
+        ],
         experimentalFeatures: {
           useBarCodeDetectorIfSupported: true
         }
@@ -421,7 +429,6 @@
         configEscaneo,
         (decodedText, decodedResult) => {
           scanBox.classList.add('detected');
-
           document.getElementById('gCodigo').value = decodedText;
 
           const existente = cacheProductosSucursal.find(p => p.codigo === decodedText);
@@ -439,13 +446,13 @@
               document.getElementById('gCosto').value = '';
               document.getElementById('gPrecio').value = '';
               document.getElementById('gExistencia').value = 50;
-              alert(`⚡ Código detectado: ${decodedText}.\nEste producto no existe en esta sucursal. Completa los datos para darlo de alta.`);
+              alert(`⚡ Código de barras detectado: ${decodedText}.\nEste producto no existe en esta sucursal. Completa los datos para darlo de alta.`);
             }
-          }, 200);
+          }, 120);
         },
         (errorMessage) => {}
       ).catch(err => {
-        alert("No se pudo iniciar la cámara. Verifica permisos HTTPS: " + err);
+        alert("No se pudo iniciar la cámara: " + err);
         cerrarEscaner();
       });
     }

@@ -125,9 +125,8 @@
     .scanner-container { position: relative; width: 100%; max-width: 400px; background: #000; border-radius: var(--radius); overflow: hidden; border: 2px solid var(--border-color); }
     #reader { width: 100%; }
     
-    /* Marco Guía Láser Animado */
     .scanner-laser-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; pointer-events: none; display: flex; flex-direction: column; justify-content: center; align-items: center; }
-    .scan-box { width: 260px; height: 140px; border: 2px dashed rgba(255,255,255,0.7); border-radius: 12px; position: relative; box-shadow: 0 0 0 1000px rgba(0,0,0,0.5); transition: all 0.2s ease; }
+    .scan-box { width: 280px; height: 130px; border: 2px dashed rgba(255,255,255,0.7); border-radius: 12px; position: relative; box-shadow: 0 0 0 1000px rgba(0,0,0,0.5); transition: all 0.2s ease; }
     .scan-box.detected { border-color: var(--success); background: rgba(16, 185, 129, 0.15); }
     .scan-line { position: absolute; width: 100%; height: 2px; background: var(--danger); top: 0; animation: scanMove 2s infinite linear; }
     @keyframes scanMove { 0% { top: 0%; } 50% { top: 100%; } 100% { top: 0%; } }
@@ -162,7 +161,7 @@
   </div>
 
   <header>
-    <h1>🛒 Super Toñita <span style="font-size: 11px; font-weight: 500; opacity: 0.7;">| Pro Suite</span></h1>
+    <h1>🛒 Super Toñita <span style="font-size: 11px; font-weight: 500; opacity: 0.7;"></span></h1>
     <span id="syncStatus">Sincronizado</span>
   </header>
 
@@ -400,7 +399,7 @@
     }
 
     // ==========================================
-    // ESCÁNER PRO OPTIMIZADO CON CAPTURA Y ENFOQUE
+    // ESCÁNER PRO OPTIMIZADO (API NATIVA + SUPRESIÓN DE RETARDO)
     // ==========================================
     function abrirEscaner() {
       document.getElementById('scannerModal').style.display = 'flex';
@@ -410,33 +409,21 @@
       html5QrcodeScanner = new Html5Qrcode("reader");
       
       const configEscaneo = { 
-        fps: 20, // Mayor tasa de fotogramas para velocidad instantánea
-        qrbox: { width: 260, height: 140 },
-        aspectRatio: 1.777778
+        fps: 25,
+        qrbox: { width: 280, height: 130 },
+        experimentalFeatures: {
+          useBarCodeDetectorIfSupported: true
+        }
       };
 
       html5QrcodeScanner.start(
         { facingMode: "environment" },
         configEscaneo,
         (decodedText, decodedResult) => {
-          // 1. EFECTO VISUAL: Marco verde inmediato al enfocar y leer
           scanBox.classList.add('detected');
-
-          // 2. MINI CAPTURA DEL FRAME EN CANVAS (Congela visualmente el hallazgo)
-          try {
-            const videoElement = document.querySelector('#reader video');
-            if (videoElement) {
-              const canvas = document.getElementById('snapshotCanvas');
-              canvas.width = videoElement.videoWidth;
-              canvas.height = videoElement.videoHeight;
-              const ctx = canvas.getContext('2d');
-              ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
-            }
-          } catch(e) { console.log("Captura omitida:", e); }
 
           document.getElementById('gCodigo').value = decodedText;
 
-          // 3. BUSCAR EN LA CACHÉ DE LA SUCURSAL SELECCIONADA INMEDIATAMENTE
           const existente = cacheProductosSucursal.find(p => p.codigo === decodedText);
           
           setTimeout(() => {
@@ -452,15 +439,13 @@
               document.getElementById('gCosto').value = '';
               document.getElementById('gPrecio').value = '';
               document.getElementById('gExistencia').value = 50;
-              alert(`⚡ Código escaneado: ${decodedText}.\nEste producto no existe en esta sucursal. Completa los datos para darlo de alta.`);
+              alert(`⚡ Código detectado: ${decodedText}.\nEste producto no existe en esta sucursal. Completa los datos para darlo de alta.`);
             }
-          }, 250); // Breve retardo para que se aprecie el recuadro verde de éxito
+          }, 200);
         },
-        (errorMessage) => {
-          // Errores de escaneo continuo por fotograma vacío (se ignoran para no saturar)
-        }
+        (errorMessage) => {}
       ).catch(err => {
-        alert("Error al abrir la cámara: " + err);
+        alert("No se pudo iniciar la cámara. Verifica permisos HTTPS: " + err);
         cerrarEscaner();
       });
     }

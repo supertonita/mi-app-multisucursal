@@ -120,28 +120,49 @@
 
     .ticket-receipt-preview { font-family: 'Courier New', Courier, monospace; background: #fdfdfd; border: 1px dashed var(--border-color); padding: 16px; border-radius: 12px; max-height: 400px; overflow-y: auto; font-size: 12px; line-height: 1.5; }
 
-    /* Barra de Navegación Inferior Estilo FinTech con SVG Line Icons */
+    /* Estilos para el Escáner Pro con Mira Láser */
+    #scannerModal { display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.9); z-index: 2000; flex-direction: column; justify-content: center; align-items: center; padding: 20px; }
+    .scanner-container { position: relative; width: 100%; max-width: 400px; background: #000; border-radius: var(--radius); overflow: hidden; border: 2px solid var(--border-color); }
+    #reader { width: 100%; }
+    
+    /* Marco Guía Láser Animado */
+    .scanner-laser-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; pointer-events: none; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+    .scan-box { width: 260px; height: 140px; border: 2px dashed rgba(255,255,255,0.7); border-radius: 12px; position: relative; box-shadow: 0 0 0 1000px rgba(0,0,0,0.5); transition: all 0.2s ease; }
+    .scan-box.detected { border-color: var(--success); background: rgba(16, 185, 129, 0.15); }
+    .scan-line { position: absolute; width: 100%; height: 2px; background: var(--danger); top: 0; animation: scanMove 2s infinite linear; }
+    @keyframes scanMove { 0% { top: 0%; } 50% { top: 100%; } 100% { top: 0%; } }
+
+    /* Barra de Navegación Inferior */
     .floating-nav { position: fixed; bottom: 16px; left: 16px; right: 16px; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(12px); padding: 8px 12px; display: flex; justify-content: space-around; box-shadow: 0 10px 30px rgba(0,0,0,0.12); z-index: 1000; border-radius: 24px; border: 1px solid var(--border-color); max-width: 580px; margin: 0 auto; }
     .float-btn { background: transparent; color: var(--text-muted); border: none; padding: 8px 12px; border-radius: 16px; font-weight: 600; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; transition: 0.2s; }
     .float-btn svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; transition: 0.2s; }
     .float-btn.active { color: #fff; background: var(--primary); box-shadow: 0 4px 12px rgba(30,58,95,0.3); }
     .float-btn.active svg { stroke: #fff; }
-
-    #scannerModal { display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.85); z-index: 2000; flex-direction: column; justify-content: center; align-items: center; padding: 20px; }
-    #reader { width: 100%; max-width: 400px; background: #fff; border-radius: var(--radius); overflow: hidden; }
   </style>
 </head>
 <body>
 
-  <!-- MODAL DE ESCÁNER DE CÓDIGO DE BARRAS -->
+  <!-- MODAL DE ESCÁNER DE CÓDIGO DE BARRAS PRO -->
   <div id="scannerModal">
-    <div style="color: #fff; margin-bottom: 15px; font-weight: bold; font-size: 16px;">Apunte al código de barras</div>
-    <div id="reader"></div>
-    <button onclick="cerrarEscaner()" style="margin-top: 15px; background: var(--danger); color: #fff; border: none; padding: 10px 20px; border-radius: 20px; font-weight: bold; cursor: pointer;">Cerrar Cámara</button>
+    <div style="color: #fff; margin-bottom: 12px; font-weight: bold; font-size: 15px; text-align: center;">
+      📷 Alinea el código en el recuadro
+    </div>
+    <div class="scanner-container">
+      <div id="reader"></div>
+      <div class="scanner-overlay">
+        <div class="scanner-laser-overlay">
+          <div id="scanBoxElement" class="scan-box">
+            <div class="scan-line"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <canvas id="snapshotCanvas" style="display:none;"></canvas>
+    <button onclick="cerrarEscaner()" style="margin-top: 18px; background: var(--danger); color: #fff; border: none; padding: 10px 24px; border-radius: 20px; font-weight: bold; cursor: pointer;">Cerrar Cámara</button>
   </div>
 
   <header>
-    <h1>🛒 Super Toñita <span style="font-size: 11px; font-weight: 500; opacity: 0.7;">|</span></h1>
+    <h1>🛒 Super Toñita <span style="font-size: 11px; font-weight: 500; opacity: 0.7;">| Pro Suite</span></h1>
     <span id="syncStatus">Sincronizado</span>
   </header>
 
@@ -239,11 +260,11 @@
       </div>
     </div>
 
-    <!-- PANTALLA 3: CIERRES DE CAJA / ARQUEOS (NUEVO) -->
+    <!-- PANTALLA 3: CIERRES DE CAJA -->
     <div id="screenCierres" class="app-screen">
       <div class="section-box">
         <h2>💵 Auditoría de Cierres de Caja (<span id="lblSucursalCierresLabel">Todas las Sucursales</span>)</h2>
-        <p style="margin-bottom: 12px; color: var(--text-muted); font-size: 11px;"></p>
+        <p style="margin-bottom: 12px; color: var(--text-muted); font-size: 11px;">Revisa los arqueos de efectivo y diferencia declarada por los cajeros en sus cortes de turno.</p>
         <div style="max-height: 400px; overflow-y: auto;">
           <table>
             <thead>
@@ -324,7 +345,7 @@
     </div>
   </main>
 
-  <!-- BARRA DE NAVEGACIÓN INFERIOR CON ICONOS SVG LINEALES -->
+  <!-- BARRA DE NAVEGACIÓN INFERIOR -->
   <nav class="floating-nav">
     <button class="float-btn active" id="navRep" onclick="cambiarPantalla('screenReportes', 'navRep')">
       <svg viewBox="0 0 24 24"><path d="M18 20V10M12 20V4M6 20v-6"/></svg> Reportes
@@ -378,31 +399,66 @@
       return p.includes('tarj') || p.includes('transf') || p.includes('debito') || p.includes('credito') || p.includes('pos');
     }
 
+    // ==========================================
+    // ESCÁNER PRO OPTIMIZADO CON CAPTURA Y ENFOQUE
+    // ==========================================
     function abrirEscaner() {
       document.getElementById('scannerModal').style.display = 'flex';
+      const scanBox = document.getElementById('scanBoxElement');
+      scanBox.classList.remove('detected');
+
       html5QrcodeScanner = new Html5Qrcode("reader");
+      
+      const configEscaneo = { 
+        fps: 20, // Mayor tasa de fotogramas para velocidad instantánea
+        qrbox: { width: 260, height: 140 },
+        aspectRatio: 1.777778
+      };
+
       html5QrcodeScanner.start(
         { facingMode: "environment" },
-        { fps: 10, qrbox: { width: 250, height: 150 } },
-        (decodedText) => {
+        configEscaneo,
+        (decodedText, decodedResult) => {
+          // 1. EFECTO VISUAL: Marco verde inmediato al enfocar y leer
+          scanBox.classList.add('detected');
+
+          // 2. MINI CAPTURA DEL FRAME EN CANVAS (Congela visualmente el hallazgo)
+          try {
+            const videoElement = document.querySelector('#reader video');
+            if (videoElement) {
+              const canvas = document.getElementById('snapshotCanvas');
+              canvas.width = videoElement.videoWidth;
+              canvas.height = videoElement.videoHeight;
+              const ctx = canvas.getContext('2d');
+              ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+            }
+          } catch(e) { console.log("Captura omitida:", e); }
+
           document.getElementById('gCodigo').value = decodedText;
+
+          // 3. BUSCAR EN LA CACHÉ DE LA SUCURSAL SELECCIONADA INMEDIATAMENTE
           const existente = cacheProductosSucursal.find(p => p.codigo === decodedText);
-          if (existente) {
-            document.getElementById('gDescripcion').value = existente.descripcion;
-            document.getElementById('gCosto').value = existente.costo || 0;
-            document.getElementById('gPrecio').value = existente.precio || 0;
-            document.getElementById('gExistencia').value = existente.existencia || 0;
-            alert(`Producto encontrado: "${existente.descripcion}"`);
-          } else {
-            document.getElementById('gDescripcion').value = '';
-            document.getElementById('gCosto').value = '';
-            document.getElementById('gPrecio').value = '';
-            document.getElementById('gExistencia').value = 50;
-            alert(`Código escaneado: ${decodedText}.\nEste producto no existe. Completa los datos para INGRESARLO.`);
-          }
-          cerrarEscaner();
+          
+          setTimeout(() => {
+            cerrarEscaner();
+            if (existente) {
+              document.getElementById('gDescripcion').value = existente.descripcion;
+              document.getElementById('gCosto').value = existente.costo || 0;
+              document.getElementById('gPrecio').value = existente.precio || 0;
+              document.getElementById('gExistencia').value = existente.existencia || 0;
+              alert(`✔ Producto encontrado: "${existente.descripcion}"`);
+            } else {
+              document.getElementById('gDescripcion').value = '';
+              document.getElementById('gCosto').value = '';
+              document.getElementById('gPrecio').value = '';
+              document.getElementById('gExistencia').value = 50;
+              alert(`⚡ Código escaneado: ${decodedText}.\nEste producto no existe en esta sucursal. Completa los datos para darlo de alta.`);
+            }
+          }, 250); // Breve retardo para que se aprecie el recuadro verde de éxito
         },
-        () => {}
+        (errorMessage) => {
+          // Errores de escaneo continuo por fotograma vacío (se ignoran para no saturar)
+        }
       ).catch(err => {
         alert("Error al abrir la cámara: " + err);
         cerrarEscaner();
@@ -877,14 +933,14 @@
         if (destino === 'actual') {
           const dbActual = obtenerDbSeleccionada();
           await window.FBTools.setDoc(window.FBTools.doc(dbActual, "productos", codigo), productoData, { merge: true });
-          alert(`¡Éxito! Producto "${descripcion}" guardado en la sucursal.`);
+          alert(`✔ Producto "${descripcion}" guardado en la sucursal.`);
         } else {
           await Promise.all([
             window.FBTools.setDoc(window.FBTools.doc(window.dbMetapan, "productos", codigo), productoData, { merge: true }),
             window.FBTools.setDoc(window.FBTools.doc(window.dbLosFuentes, "productos", codigo), productoData, { merge: true }),
             window.FBTools.setDoc(window.FBTools.doc(window.dbCorinto, "productos", codigo), productoData, { merge: true })
           ]);
-          alert(`¡Éxito! Producto "${descripcion}" sincronizado en las 3 sucursales.`);
+          alert(`✔ Producto "${descripcion}" sincronizado en las 3 sucursales.`);
         }
 
         document.getElementById('inputBuscadorProd').value = '';

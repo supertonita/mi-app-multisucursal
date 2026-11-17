@@ -120,16 +120,15 @@
 
     .ticket-receipt-preview { font-family: 'Courier New', Courier, monospace; background: #fdfdfd; border: 1px dashed var(--border-color); padding: 16px; border-radius: 12px; max-height: 400px; overflow-y: auto; font-size: 12px; line-height: 1.5; }
 
-    /* Estilos para el Escáner Pro Exclusivo de Barras */
+    /* Estilos para el Escáner Preciso Antierrores */
     #scannerModal { display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.9); z-index: 2000; flex-direction: column; justify-content: center; align-items: center; padding: 20px; }
     .scanner-container { position: relative; width: 100%; max-width: 400px; background: #000; border-radius: var(--radius); overflow: hidden; border: 2px solid var(--border-color); }
     #reader { width: 100%; }
     
     .scanner-laser-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; pointer-events: none; display: flex; flex-direction: column; justify-content: center; align-items: center; }
-    .scan-box { width: 300px; height: 120px; border: 2px dashed rgba(255,255,255,0.7); border-radius: 12px; position: relative; box-shadow: 0 0 0 1000px rgba(0,0,0,0.5); transition: all 0.2s ease; }
-    .scan-box.detected { border-color: var(--success); background: rgba(16, 185, 129, 0.15); }
-    .scan-line { position: absolute; width: 100%; height: 2px; background: var(--danger); top: 0; animation: scanMove 1.5s infinite linear; }
-    @keyframes scanMove { 0% { top: 0%; } 50% { top: 100%; } 100% { top: 0%; } }
+    .scan-box { width: 320px; height: 100px; border: 2px solid rgba(16, 185, 129, 0.8); border-radius: 10px; position: relative; box-shadow: 0 0 0 1000px rgba(0,0,0,0.6); transition: all 0.2s ease; }
+    .scan-box.detected { border-color: var(--success); background: rgba(16, 185, 129, 0.2); }
+    .scan-line { position: absolute; width: 100%; height: 2px; background: var(--danger); top: 50%; }
 
     /* Barra de Navegación Inferior */
     .floating-nav { position: fixed; bottom: 16px; left: 16px; right: 16px; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(12px); padding: 8px 12px; display: flex; justify-content: space-around; box-shadow: 0 10px 30px rgba(0,0,0,0.12); z-index: 1000; border-radius: 24px; border: 1px solid var(--border-color); max-width: 580px; margin: 0 auto; }
@@ -141,10 +140,10 @@
 </head>
 <body>
 
-  <!-- MODAL DE ESCÁNER EXCLUSIVO DE CÓDIGOS DE BARRAS -->
+  <!-- MODAL DE ESCÁNER ESTRICTO EAN-13 -->
   <div id="scannerModal">
     <div style="color: #fff; margin-bottom: 12px; font-weight: bold; font-size: 15px; text-align: center;">
-      📷 Centra el Código de Barras
+      📷 Coloca las barras dentro de la ranura verde
     </div>
     <div class="scanner-container">
       <div id="reader"></div>
@@ -160,7 +159,7 @@
   </div>
 
   <header>
-    <h1>🛒 Super Toñita <span style="font-size: 11px; font-weight: 500; opacity: 0.7;">|</span></h1>
+    <h1>🛒 Super Toñita <span style="font-size: 11px; font-weight: 500; opacity: 0.7;">| Pro Suite</span></h1>
     <span id="syncStatus">Sincronizado</span>
   </header>
 
@@ -398,7 +397,7 @@
     }
 
     // ========================================================
-    // ESCÁNER PRO EXCLUSIVO PARA CÓDIGOS DE BARRAS (SIN QR)
+    // ESCÁNER ESTRICTO ANTI-ERRORES (SOLO EAN-13 Y CODE-128 REALES)
     // ========================================================
     function abrirEscaner() {
       document.getElementById('scannerModal').style.display = 'flex';
@@ -408,16 +407,12 @@
       html5QrcodeScanner = new Html5Qrcode("reader");
       
       const configEscaneo = { 
-        fps: 30,
-        qrbox: { width: 300, height: 120 },
-        // RESTRICCIÓN ESTRICTA: Solo busca formatos de códigos de barras lineales (ignora QR por completo)
+        fps: 20,
+        qrbox: { width: 320, height: 100 },
+        // RESTRICCIÓN TOTAL: Solo permitimos EAN_13 y CODE_128 para evitar interpretaciones erróneas de otros formatos
         formatsToSupport: [ 
-          Html5QrcodeSupportedFormats.EAN_13, 
-          Html5QrcodeSupportedFormats.EAN_8, 
-          Html5QrcodeSupportedFormats.CODE_128, 
-          Html5QrcodeSupportedFormats.CODE_39,
-          Html5QrcodeSupportedFormats.UPC_A,
-          Html5QrcodeSupportedFormats.UPC_E
+          Html5QrcodeSupportedFormats.EAN_13,
+          Html5QrcodeSupportedFormats.CODE_128
         ],
         experimentalFeatures: {
           useBarCodeDetectorIfSupported: true
@@ -428,6 +423,9 @@
         { facingMode: "environment" },
         configEscaneo,
         (decodedText, decodedResult) => {
+          // Validación de seguridad para asegurar longitud correcta de EAN-13 / Code 128
+          if (!decodedText || decodedText.length < 5) return;
+
           scanBox.classList.add('detected');
           document.getElementById('gCodigo').value = decodedText;
 
@@ -446,9 +444,9 @@
               document.getElementById('gCosto').value = '';
               document.getElementById('gPrecio').value = '';
               document.getElementById('gExistencia').value = 50;
-              alert(`⚡ Código de barras detectado: ${decodedText}.\nEste producto no existe en esta sucursal. Completa los datos para darlo de alta.`);
+              alert(`⚡ Código exacto: ${decodedText}.\nEste producto no existe en esta sucursal. Completa los datos para darlo de alta.`);
             }
-          }, 120);
+          }, 150);
         },
         (errorMessage) => {}
       ).catch(err => {
@@ -935,7 +933,7 @@
           alert(`✔ Producto "${descripcion}" sincronizado en las 3 sucursales.`);
         }
 
-        document.getElementById('inputBuscadorProd').value = '';
+        document.getElementById('inputBuscadorProd').value, '';
         document.getElementById('gCodigo').value = '';
         document.getElementById('gDescripcion').value = '';
         document.getElementById('gCosto').value = '';

@@ -127,16 +127,18 @@
     .float-btn.active { color: #fff; background: var(--primary); box-shadow: 0 4px 12px rgba(30,58,95,0.3); }
     .float-btn.active svg { stroke: #fff; }
 
-    #scannerModal { display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.85); z-index: 2000; flex-direction: column; justify-content: center; align-items: center; padding: 20px; }
-    #reader { width: 100%; max-width: 400px; background: #fff; border-radius: var(--radius); overflow: hidden; }
+    #scannerModal { display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.88); z-index: 2000; flex-direction: column; justify-content: center; align-items: center; padding: 20px; }
+    #reader { width: 100%; max-width: 400px; background: #000; border-radius: var(--radius); overflow: hidden; border: 2px solid #334155; }
+    #scannerStatusHint { color: #e2e8f0; margin-top: 10px; font-size: 12px; text-align: center; max-width: 360px; }
   </style>
 </head>
 <body>
 
   <!-- MODAL DE ESCÁNER DE CÓDIGO DE BARRAS -->
   <div id="scannerModal">
-    <div style="color: #fff; margin-bottom: 15px; font-weight: bold; font-size: 16px;">Apunte al código de barras</div>
+    <div style="color: #fff; margin-bottom: 12px; font-weight: bold; font-size: 16px;">Apunte al código de barras</div>
     <div id="reader"></div>
+    <div id="scannerStatusHint">Iniciando cámara... Mantén el código horizontal a unos 12–15 cm.</div>
     <button onclick="cerrarEscaner()" style="margin-top: 15px; background: var(--danger); color: #fff; border: none; padding: 10px 20px; border-radius: 20px; font-weight: bold; cursor: pointer;">Cerrar Cámara</button>
   </div>
 
@@ -239,7 +241,7 @@
       </div>
     </div>
 
-    <!-- PANTALLA 3: CIERRES DE CAJA / ARQUEOS (NUEVO) -->
+    <!-- PANTALLA 3: CIERRES DE CAJA / ARQUEOS -->
     <div id="screenCierres" class="app-screen">
       <div class="section-box">
         <h2>💵 Auditoría de Cierres de Caja (<span id="lblSucursalCierresLabel">Todas las Sucursales</span>)</h2>
@@ -351,6 +353,7 @@
     let chartBarInstance = null;
     let chartDoughnutInstance = null;
     let html5QrcodeScanner = null;
+    let escaneoBloqueado = false;
 
     window.addEventListener('firebase-ready', () => {
       const hoy = new Date();
@@ -378,45 +381,108 @@
       return p.includes('tarj') || p.includes('transf') || p.includes('debito') || p.includes('credito') || p.includes('pos');
     }
 
-    function abrirEscaner() {
-      document.getElementById('scannerModal').style.display = 'flex';
-      html5QrcodeScanner = new Html5Qrcode("reader");
-      html5QrcodeScanner.start(
-        { facingMode: "environment" },
-        { fps: 10, qrbox: { width: 250, height: 150 } },
-        (decodedText) => {
-          document.getElementById('gCodigo').value = decodedText;
-          const existente = cacheProductosSucursal.find(p => p.codigo === decodedText);
-          if (existente) {
-            document.getElementById('gDescripcion').value = existente.descripcion;
-            document.getElementById('gCosto').value = existente.costo || 0;
-            document.getElementById('gPrecio').value = existente.precio || 0;
-            document.getElementById('gExistencia').value = existente.existencia || 0;
-            alert(`Producto encontrado: "${existente.descripcion}"`);
-          } else {
-            document.getElementById('gDescripcion').value = '';
-            document.getElementById('gCosto').value = '';
-            document.getElementById('gPrecio').value = '';
-            document.getElementById('gExistencia').value = 50;
-            alert(`Código escaneado: ${decodedText}.\nEste producto no existe. Completa los datos para INGRESARLO.`);
-          }
-          cerrarEscaner();
-        },
-        () => {}
-      ).catch(err => {
-        alert("Error al abrir la cámara: " + err);
-        cerrarEscaner();
-      });
+    function aplicarCodigoEscaneado(decodedText) {
+      const codigoLimpio = String(decodedText || '').trim();
+      if (!codigoLimpio) return;
+
+      document.getElementById('gCodigo').value = codigoLimpio;
+      const existente = cacheProductosSucursal.find(p => String(p.codigo || '').trim() === codigoLimpio);
+
+      if (existente) {
+        document.getElementById('gDescripcion').value = existente.descripcion || '';
+        document.getElementById('gCosto').value = existente.costo ?? 0;
+        document.getElementById('gPrecio').value = existente.precio ?? 0;
+        document.getElementById('gExistencia').value = existente.existencia ?? 0;
+        alert(`Producto encontrado: "${existente.descripcion}"`);
+      } else {
+        document.getElementById('gDescripcion').value = '';
+        document.getElementById('gCosto').value = '';
+        document.getElementById('gPrecio').value = '';
+        document.getElementById('gExistencia').value = 50;
+        alert(`Código escaneado: ${codigoLimpio}.\nEste producto no existe. Completa los datos para INGRESARLO.`);
+      }
     }
 
-    function cerrarEscaner() {
+    async function abrirEscaner() {
+      escaneoBloqueado = false;
+      document.getElementById('scannerModal').style.display = 'flex';
+      document.getElementById('scannerStatusHint').innerText = "Abriendo cámara trasera...";
+
+      await cerrarEscaner(false);
+
+      if (typeof Html5Qrcode === 'undefined') {
+        alert("No cargó la librería de escaneo. Revisa tu conexión a internet.");
+        document.getElementById('scannerModal').style.display = 'none';
+        return;
+      }
+
+      html5QrcodeScanner = new Html5Qrcode("reader");
+
+      const config = {
+        fps: 20,
+        qrbox: function(viewfinderWidth, viewfinderHeight) {
+          const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
+          const width = Math.min(320, Math.floor(minEdge * 0.9));
+          const height = Math.max(90, Math.floor(width * 0.45));
+          return { width, height };
+        },
+        rememberLastUsedCamera: true,
+        experimentalFeatures: {
+          useBarCodeDetectorIfSupported: true
+        }
+      };
+
+      const onScanSuccess = async (decodedText) => {
+        if (escaneoBloqueado) return;
+        escaneoBloqueado = true;
+        await cerrarEscaner(false);
+        aplicarCodigoEscaneado(decodedText);
+      };
+
+      try {
+        await html5QrcodeScanner.start(
+          { facingMode: { ideal: "environment" } },
+          config,
+          onScanSuccess,
+          () => {}
+        );
+        document.getElementById('scannerStatusHint').innerText = "Cámara lista. Alinea las barras horizontalmente y mantén firme.";
+      } catch (err) {
+        try {
+          const cameras = await Html5Qrcode.getCameras();
+          if (cameras && cameras.length > 0) {
+            const trasera = cameras.find(c => /back|rear|environment|trasera/i.test(c.label)) || cameras[cameras.length - 1];
+            await html5QrcodeScanner.start(
+              trasera.id,
+              config,
+              onScanSuccess,
+              () => {}
+            );
+            document.getElementById('scannerStatusHint').innerText = "Cámara activa. Apunta al código de barras.";
+            return;
+          }
+        } catch (err2) {
+          console.error("Error fallback cámara:", err2);
+        }
+        alert("Error al abrir la cámara: " + (err?.message || err) + "\nVerifica permisos de cámara y que la página esté en HTTPS o localhost.");
+        await cerrarEscaner(false);
+      }
+    }
+
+    async function cerrarEscaner(ocultarModal = true) {
       if (html5QrcodeScanner) {
-        html5QrcodeScanner.stop().then(() => {
-          document.getElementById('scannerModal').style.display = 'none';
-        }).catch(() => {
-          document.getElementById('scannerModal').style.display = 'none';
-        });
-      } else {
+        const instancia = html5QrcodeScanner;
+        html5QrcodeScanner = null;
+        try {
+          if (instancia.isScanning) {
+            await instancia.stop();
+          }
+        } catch (e) {}
+        try {
+          await instancia.clear();
+        } catch (e) {}
+      }
+      if (ocultarModal) {
         document.getElementById('scannerModal').style.display = 'none';
       }
     }
@@ -769,8 +835,8 @@
       }
 
       tbody.innerHTML = cierresFiltrados.map(c => {
-        let efectivoCaja = c.efectivoReal || c.totalEfectivo || c.montoEfectivo || 0;
-        let ventaSistema = c.ventasTotales || c.totalVentas || 0;
+        let efectivoCaja = parseFloat(c.efectivoReal ?? c.totalEfectivo ?? c.montoEfectivo ?? 0) || 0;
+        let ventaSistema = parseFloat(c.ventasTotales ?? c.totalVentas ?? 0) || 0;
         let diferencia = efectivoCaja - ventaSistema;
         let colorDif = diferencia < 0 ? 'var(--danger)' : (diferencia > 0 ? 'var(--success)' : 'var(--text-main)');
 
@@ -780,7 +846,7 @@
             <td>${new Date(c.fecha || c.timestamp).toLocaleString()}</td>
             <td>${c.cajero || c.usuario || 'Cajero'}</td>
             <td>$${efectivoCaja.toFixed(2)}</td>
-            <td>$${ventasistema.toFixed(2)}</td>
+            <td>$${ventaSistema.toFixed(2)}</td>
             <td style="color: ${colorDif}; font-weight: 700;">$${diferencia.toFixed(2)}</td>
           </tr>
         `;

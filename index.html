@@ -10,7 +10,7 @@
   <meta name="theme-color" content="#1e3a5f">
   
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="https://unpkg.com/html5-qrcode"></script>
+  <script src="https://unpkg.com/@zxing/browser@0.1.5/umd/zxing-browser.min.js"></script>
   
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
@@ -352,7 +352,9 @@
     let cacheProductosSucursal = [];
     let chartBarInstance = null;
     let chartDoughnutInstance = null;
-    let html5QrcodeScanner = null;
+    let streamCamaraActiva = null;
+    let loopEscaneoId = null;
+    let zxingReaderInstancia = null;
     let escaneoBloqueado = false;
 
     window.addEventListener('firebase-ready', () => {
@@ -405,83 +407,139 @@
 
     async function abrirEscaner() {
       escaneoBloqueado = false;
-      document.getElementById('scannerModal').style.display = 'flex';
-      document.getElementById('scannerStatusHint').innerText = "Abriendo cámara trasera...";
+      const modal = document.getElementById('scannerModal');
+      const reader = document.getElementById('reader');
+      const hint = document.getElementById('scannerStatusHint');
+
+      modal.style.display = 'flex';
+      hint.innerText = "Solicitando cámara trasera...";
 
       await cerrarEscaner(false);
 
-      if (typeof Html5Qrcode === 'undefined') {
-        alert("No cargó la librería de escaneo. Revisa tu conexión a internet.");
-        document.getElementById('scannerModal').style.display = 'none';
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        alert("Este navegador no permite acceder a la cámara. Usa Safari o Chrome en HTTPS.");
+        modal.style.display = 'none';
         return;
       }
 
-      html5QrcodeScanner = new Html5Qrcode("reader");
+      reader.innerHTML = `<video id="videoEscanerIos" playsinline autoplay muted style="width:100%; max-height:320px; object-fit:cover; display:block; background:#000;"></video>`;
+      const videoEl = document.getElementById('videoEscanerIos');
 
-      const config = {
-        fps: 20,
-        qrbox: function(viewfinderWidth, viewfinderHeight) {
-          const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
-          const width = Math.min(320, Math.floor(minEdge * 0.9));
-          const height = Math.max(90, Math.floor(width * 0.45));
-          return { width, height };
-        },
-        rememberLastUsedCamera: true,
-        experimentalFeatures: {
-          useBarCodeDetectorIfSupported: true
-        }
-      };
-
-      const onScanSuccess = async (decodedText) => {
-        if (escaneoBloqueado) return;
-        escaneoBloqueado = true;
-        await cerrarEscaner(false);
-        aplicarCodigoEscaneado(decodedText);
-      };
+      const formatosBarras = [
+        'ean_13',
+        'ean_8',
+        'code_128',
+        'code_39',
+        'upc_a',
+        'upc_e'
+      ];
 
       try {
-        await html5QrcodeScanner.start(
-          { facingMode: { ideal: "environment" } },
-          config,
-          onScanSuccess,
-          () => {}
-        );
-        document.getElementById('scannerStatusHint').innerText = "Cámara lista. Alinea las barras horizontalmente y mantén firme.";
-      } catch (err) {
         try {
-          const cameras = await Html5Qrcode.getCameras();
-          if (cameras && cameras.length > 0) {
-            const trasera = cameras.find(c => /back|rear|environment|trasera/i.test(c.label)) || cameras[cameras.length - 1];
-            await html5QrcodeScanner.start(
-              trasera.id,
-              config,
-              onScanSuccess,
-              () => {}
-            );
-            document.getElementById('scannerStatusHint').innerText = "Cámara activa. Apunta al código de barras.";
-            return;
-          }
-        } catch (err2) {
-          console.error("Error fallback cámara:", err2);
+          streamCamaraActiva = await navigator.mediaDevices.getUserMedia({
+            audio: false,
+            video: {
+              facingMode: { ideal: "environment" },
+              width: { ideal: 1280 },
+              height: { ideal: 720 }
+            }
+          });
+        } catch (eRear) {
+          streamCamaraActiva = await navigator.mediaDevices.getUserMedia({
+            audio: false,
+            video: { facingMode: "environment" }
+          });
         }
-        alert("Error al abrir la cámara: " + (err?.message || err) + "\nVerifica permisos de cámara y que la página esté en HTTPS o localhost.");
-        await cerrarEscaner(false);
+
+        videoEl.srcObject = streamCamaraActiva;
+        await videoEl.play();
+        hint.innerText = "Cámara activa. Coloca el código de barras horizontal dentro del cuadro.";
+
+        const tieneDetectorNativo = ('BarcodeDetector' in window);
+        let detectorNativo = null;
+
+        if (tieneDetectorNativo) {
+          try {
+            detectorNativo = new window.BarcodeDetector({ formats: formatosBarras });
+          } catch (eFmt) {
+            detectorNativo = new window.BarcodeDetector();
+          }
+        }
+
+        const canvasTmp = document.createElement('canvas');
+        const ctxTmp = canvasTmp.getContext('2d', { willReadFrequently: true });
+        if (!detectorNativo && window.ZXingBrowser) {
+          zxingReaderInstancia = new window.ZXingBrowser.BrowserMultiFormatReader();
+        }
+
+        let ultimoCuadroZxing = 0;
+
+        const tickLectura = async () => {
+          if (escaneoBloqueado || !streamCamaraActiva) return;
+
+          if (videoEl.readyState >= videoEl.HAVE_ENOUGH_DATA && videoEl.videoWidth > 0) {
+            try {
+              if (detectorNativo) {
+                const codigos = await detectorNativo.detect(videoEl);
+                if (codigos && codigos.length > 0 && codigos[0].rawValue) {
+                  escaneoBloqueado = true;
+                  const valor = codigos[0].rawValue;
+                  await cerrarEscaner(true);
+                  aplicarCodigoEscaneado(valor);
+                  return;
+                }
+              } else if (zxingReaderInstancia) {
+                const ahora = performance.now();
+                if (ahora - ultimoCuadroZxing > 220) {
+                  ultimoCuadroZxing = ahora;
+                  canvasTmp.width = videoEl.videoWidth;
+                  canvasTmp.height = videoEl.videoHeight;
+                  ctxTmp.drawImage(videoEl, 0, 0, canvasTmp.width, canvasTmp.height);
+                  try {
+                    const resZxing = await zxingReaderInstancia.decodeFromCanvas(canvasTmp);
+                    if (resZxing && resZxing.getText()) {
+                      escaneoBloqueado = true;
+                      const valor = resZxing.getText();
+                      await cerrarEscaner(true);
+                      aplicarCodigoEscaneado(valor);
+                      return;
+                    }
+                  } catch (eNoCode) {}
+                }
+              }
+            } catch (eDetect) {}
+          }
+
+          loopEscaneoId = requestAnimationFrame(tickLectura);
+        };
+
+        loopEscaneoId = requestAnimationFrame(tickLectura);
+
+      } catch (err) {
+        console.error("Error al iniciar stream de cámara:", err);
+        alert("No se pudo abrir la cámara en el iPhone: " + (err?.name || "Error") + " - " + (err?.message || err));
+        await cerrarEscaner(true);
       }
     }
 
     async function cerrarEscaner(ocultarModal = true) {
-      if (html5QrcodeScanner) {
-        const instancia = html5QrcodeScanner;
-        html5QrcodeScanner = null;
-        try {
-          if (instancia.isScanning) {
-            await instancia.stop();
-          }
-        } catch (e) {}
-        try {
-          await instancia.clear();
-        } catch (e) {}
+      if (loopEscaneoId) {
+        cancelAnimationFrame(loopEscaneoId);
+        loopEscaneoId = null;
       }
+
+      if (streamCamaraActiva) {
+        streamCamaraActiva.getTracks().forEach(track => track.stop());
+        streamCamaraActiva = null;
+      }
+
+      const videoEl = document.getElementById('videoEscanerIos');
+      if (videoEl) {
+        videoEl.srcObject = null;
+      }
+
+      zxingReaderInstancia = null;
+
       if (ocultarModal) {
         document.getElementById('scannerModal').style.display = 'none';
       }

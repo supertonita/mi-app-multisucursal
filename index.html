@@ -6,8 +6,76 @@
   <title>Super Toñita - Multi-Sucursal Pro</title>
   
   <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Super Toñita">
+  <meta name="application-name" content="Super Toñita">
   <meta name="theme-color" content="#1e3a5f">
+
+  <link id="appleTouchIconLink" rel="apple-touch-icon" sizes="180x180" href="">
+  <link id="manifestLink" rel="manifest" href="">
+
+  <script>
+    (function configurarIconoApp() {
+      const canvas = document.createElement('canvas');
+      canvas.width = 512;
+      canvas.height = 512;
+      const ctx = canvas.getContext('2d');
+
+      // Fondo degradado azul corporativo
+      const grad = ctx.createLinearGradient(0, 0, 512, 512);
+      grad.addColorStop(0, '#1e3a5f');
+      grad.addColorStop(1, '#1d528d');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, 512, 512);
+
+      // Círculo decorativo suave
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
+      ctx.beginPath();
+      ctx.arc(410, 105, 130, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Texto principal "ST"
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '900 185px "Segoe UI", Roboto, Arial, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('ST', 256, 225);
+
+      // Etiqueta inferior "TOÑITA"
+      ctx.fillStyle = '#10b981';
+      ctx.fillRect(106, 335, 300, 74);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '800 42px "Segoe UI", Roboto, Arial, sans-serif';
+      ctx.fillText('TOÑITA', 256, 374);
+
+      const pngDataUrl = canvas.toDataURL('image/png');
+      const appleLink = document.getElementById('appleTouchIconLink');
+      if (appleLink) appleLink.href = pngDataUrl;
+
+      const manifestObj = {
+        name: 'Super Toñita - Multi-Sucursal Pro',
+        short_name: 'Super Toñita',
+        start_url: './',
+        display: 'standalone',
+        background_color: '#f8fafc',
+        theme_color: '#1e3a5f',
+        icons: [
+          {
+            src: pngDataUrl,
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'any maskable'
+          }
+        ]
+      };
+
+      const manifestBlob = new Blob([JSON.stringify(manifestObj)], { type: 'application/manifest+json' });
+      const manifestUrl = URL.createObjectURL(manifestBlob);
+      const manifestEl = document.getElementById('manifestLink');
+      if (manifestEl) manifestEl.href = manifestUrl;
+    })();
+  </script>
   
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://unpkg.com/@zxing/browser@0.1.5/umd/zxing-browser.min.js"></script>
